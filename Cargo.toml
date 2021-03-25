@@ -3,12 +3,14 @@ name = "simple-server"
 version = "0.1.0"
 authors = ["Taylor Coffman <CoffmanTaylor96+git@gmail.com>"]
 edition = "2018"
+license = "GPL-3.0-or-later"
+repository = "ssh://git@github.com/CoffmanTaylor/DS-Simple-Server.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ds-libs = {path = "../ds-libs"}
-derivative = {path = "../../rust-derivative"}
-hi-set = {path = "../hi-set"}
-map-application = {path = "../map-application"}
-model-checking = {path = "../model-checking"}
+ds-libs = {git = "ssh://git@github.com/CoffmanTaylor/DS-libs.git", branch = "main"}
+derivative = {git = "https://github.com/CoffmanTaylor/rust-derivative.git", branch = "master"}
+hi-set = {git = "ssh://git@github.com/CoffmanTaylor/HISet.git", branch = "main"}
+map-application = {git = "https://github.com/CoffmanTaylor/Map-Application.git", branch = "main"}
+model-checking = {git = "https://github.com/CoffmanTaylor/model-checking.git", branch = "main"}
