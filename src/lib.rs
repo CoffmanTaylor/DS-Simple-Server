@@ -1,11 +1,12 @@
 use std::ops::Range;
 
 use ds_libs::{
-    address::Address, model_checking::StateTestHarness, Application, Context, HandleMessage,
-    HandleTimer,
+    address::Address, define_deliver_messages, define_drop_messages, define_duplicate_messages,
+    define_get_ids, define_ring_timers, model_checking::StateTestHarness, Application, Context,
+    HandleMessage, HandleTimer, NetworkItem,
 };
 
-use system::{MsgWithDst, State};
+use system::State;
 
 // **********************************************************************
 //                      User items
@@ -211,6 +212,7 @@ mod system {
         address::Address,
         amo_application::{testing::get_app, Request, Response},
         Application, Context, InitializeNode, ManageMessageType, ManageNodeType, ManageTimerType,
+        NetworkItem,
     };
     use hi_set::HISet;
 
@@ -233,8 +235,8 @@ mod system {
     where
         App: Application,
     {
-        pub servers: BTreeMap<usize, Server<App>>,
-        pub clients: BTreeMap<usize, Client<App>>,
+        pub servers: BTreeMap<Address<Server<App>>, Server<App>>,
+        pub clients: BTreeMap<Address<Client<App>>, Client<App>>,
         pub ctx: InnerCtx<App>,
     }
 
@@ -243,15 +245,9 @@ mod system {
     where
         App: Application,
     {
-        pub responses: HISet<MsgWithDst<Response<App::Res>>>,
-        pub requests: HISet<MsgWithDst<Request<App::Command, Client<App>>>>,
-        pub resend_timers: HISet<MsgWithDst<ResendTimer>>,
-    }
-
-    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone)]
-    pub struct MsgWithDst<Msg> {
-        pub dst: usize,
-        pub msg: Msg,
+        pub responses: HISet<NetworkItem<Response<App::Res>>>,
+        pub requests: HISet<NetworkItem<Request<App::Command, Client<App>>>>,
+        pub resend_timers: HISet<NetworkItem<ResendTimer>>,
     }
 
     // ----------------------------------------------------------------------
@@ -277,22 +273,19 @@ mod system {
 
         #[allow(unused)]
         pub fn change_command(&mut self, address: Address<Client<App>>, cmd: Option<App::Command>) {
-            let client = self.clients.get_mut(&address.id()).unwrap();
+            let client = self.clients.get_mut(&address).unwrap();
             client.command = cmd;
             client.send_command(&mut Context::new(address, &mut self.ctx));
         }
 
         #[allow(unused)]
-        pub fn get_response(&self, client: Address<Client<App>>) -> Option<App::Res>
-        where
-            App::Res: Clone,
-        {
-            self.clients.get(&client.id()).unwrap().response.clone()
+        pub fn get_response(&self, client: Address<Client<App>>) -> Option<App::Res> {
+            self.clients.get(&client).unwrap().response.clone()
         }
 
         #[allow(unused)]
         pub fn clear_response(&mut self, client: Address<Client<App>>) {
-            self.clients.get_mut(&client.id()).unwrap().response = None;
+            self.clients.get_mut(&client).unwrap().response = None;
         }
 
         #[allow(unused)]
@@ -315,7 +308,7 @@ mod system {
                 self.servers.len() == 0,
                 "Tried to add more than one server."
             );
-            self.servers.insert(address.id(), node);
+            self.servers.insert(address, node);
         }
     }
 
@@ -327,12 +320,12 @@ mod system {
     {
         fn add_node(&mut self, address: Address<Client<App>>, mut node: Client<App>) {
             assert!(
-                !self.clients.contains_key(&address.id()),
+                !self.clients.contains_key(&address),
                 "Attempted to add a Node to a State which already has a Node with the same ID"
             );
 
             node.init(&mut Context::new(address, &mut self.ctx));
-            self.clients.insert(address.id(), node);
+            self.clients.insert(address, node);
         }
     }
 
@@ -341,8 +334,8 @@ mod system {
         App: Application,
         App::Res: Ord,
     {
-        fn add(&mut self, dst: usize, msg: Response<App::Res>) {
-            self.responses.insert(MsgWithDst { dst, msg });
+        fn add<Node>(&mut self, dst: Address<Node>, msg: Response<App::Res>) {
+            self.responses.insert(NetworkItem { dst: dst.id(), msg });
         }
     }
 
@@ -351,8 +344,8 @@ mod system {
         App: Application,
         App::Command: Ord,
     {
-        fn add(&mut self, dst: usize, msg: Request<App::Command, Client<App>>) {
-            self.requests.insert(MsgWithDst { dst, msg });
+        fn add<Node>(&mut self, dst: Address<Node>, msg: Request<App::Command, Client<App>>) {
+            self.requests.insert(NetworkItem { dst: dst.id(), msg });
         }
     }
 
@@ -360,9 +353,14 @@ mod system {
     where
         App: Application,
     {
-        fn add(&mut self, node: usize, timer: ResendTimer, _length: std::time::Duration) {
-            self.resend_timers.insert(MsgWithDst {
-                dst: node,
+        fn add<Node>(
+            &mut self,
+            node: Address<Node>,
+            timer: ResendTimer,
+            _length: std::time::Duration,
+        ) {
+            self.resend_timers.insert(NetworkItem {
+                dst: node.id(),
                 msg: timer,
             });
         }
@@ -372,113 +370,6 @@ mod system {
 // ***************************************************************************
 //                              Searcher
 // ***************************************************************************
-
-macro_rules! define_deliver_messages {
-    (use $self:ident and $id:ident, [$($msg:ident to [ $($node:ident),+ ]),+] ) => {
-        $(
-            if $self.ctx.$msg.len() > $id {
-                let MsgWithDst { dst, msg } = $self.ctx.$msg.remove_index($id);
-
-                $(
-                    if $self.$node.contains_key(&dst) {
-                        let dst_node = $self.$node.get_mut(&dst).unwrap();
-                        dst_node.handle_message(
-                            &mut Context::new(unsafe { Address::new(dst) }, &mut $self.ctx),
-                            msg,
-                        );
-                        return;
-                    }
-                )+
-
-                unreachable!();
-            }
-            #[allow(unused)]
-            let $id = $id - $self.ctx.requests.len();
-        )+
-
-        unreachable!();
-    };
-}
-
-macro_rules! define_drop_messages {
-    (use $self:ident and $id:ident, [$($msg:ident),+] ) => {
-        $(
-            if $self.ctx.$msg.len() > $id {
-                $self.ctx.$msg.remove_index($id);
-                return;
-            }
-            #[allow(unused)]
-            let $id = $id - $self.ctx.requests.len();
-        )+
-
-        unreachable!();
-    };
-}
-
-macro_rules! define_duplicate_messages {
-    (use $self:ident and $id:ident, [$($msg:ident to [ $($node:ident),+ ]),+] ) => {
-        $(
-            if $self.ctx.$msg.len() > $id {
-                let MsgWithDst { dst, msg } = $self.ctx.$msg.get_index($id).clone();
-
-                $(
-                    if $self.$node.contains_key(&dst) {
-                        let dst_node = $self.$node.get_mut(&dst).unwrap();
-                        dst_node.handle_message(
-                            &mut Context::new(unsafe { Address::new(dst) }, &mut $self.ctx),
-                            msg,
-                        );
-                        return;
-                    }
-                )+
-
-                unreachable!();
-            }
-            #[allow(unused)]
-            let $id = $id - $self.ctx.requests.len();
-        )+
-
-        unreachable!();
-    };
-}
-
-macro_rules! define_get_ids {
-    (use $self:ident, [$($entity:ident),+] ) => {
-        return 0..(0$(
-            + $self.ctx.$entity.len()
-        )+);
-    };
-}
-
-macro_rules! define_ring_timers {
-    (use $self:ident and $id:ident, [$($timer:ident to [ $($node:ident),+ ]),+] ) => {
-        $(
-            if $self.ctx.$timer.len() > $id {
-                let MsgWithDst {
-                    dst: node,
-                    msg: timer,
-                } = $self.ctx.$timer.remove_index($id);
-
-                $(
-                    if $self.$node.contains_key(&node) {
-                        $self.$node.get_mut(&node).unwrap().handle_timer(
-                            &mut Context::new(unsafe { Address::new(node) }, &mut $self.ctx),
-                            timer,
-                        );
-                        return;
-                    }
-                )+
-
-                unreachable!();
-            }
-
-            #[allow(unused)]
-            let $id = $id - $self.ctx.$timer.len();
-        )+
-
-        unreachable!();
-    };
-}
 
 impl<App> StateTestHarness for State<App>
 where
@@ -523,10 +414,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use ds_libs::{
-        address::AddressConstructor, model_checking::real_world::UnstableNetworkWrapper,
-        ManageNodeType,
-    };
+    use ds_libs::{model_checking::real_world::UnstableNetworkWrapper, ManageNodeType};
     use map_application::{Command, CommandResponse, MapApplication};
     use model_checking::{
         multi_phase_searcher::{begin_multi_phase_search, begin_multi_phase_search_with_name},
@@ -540,14 +428,12 @@ mod tests {
     #[test]
     fn two_servers_both_see_change() {
         // setup
-        let mut addr_fact = AddressConstructor::new();
-
-        let server = addr_fact.construct_address();
+        let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());
 
-        let client1 = addr_fact.construct_address();
+        let client1 = Address::new_test_id(2);
         let client1_node = Client::new(server, Some(Command::Store(255, 42)));
-        let client2 = addr_fact.construct_address();
+        let client2 = Address::new_test_id(3);
         let client2_node = Client::new(server, None);
 
         let mut start = State::new();
@@ -590,14 +476,12 @@ mod tests {
     #[test]
     fn two_servers_change_different_values() {
         // setup
-        let mut addr_fact = AddressConstructor::new();
-
-        let server = addr_fact.construct_address();
+        let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());
 
-        let client1 = addr_fact.construct_address();
+        let client1 = Address::new_test_id(2);
         let client1_node = Client::new(server, Some(Command::Store(1, 1)));
-        let client2 = addr_fact.construct_address();
+        let client2 = Address::new_test_id(3);
         let client2_node = Client::new(server, Some(Command::Store(2, 2)));
 
         let mut start = State::new();
@@ -645,12 +529,10 @@ mod tests {
     #[test]
     fn one_server_that_drops_both_messages() {
         // setup
-        let mut addr_fact = AddressConstructor::new();
-
-        let server = addr_fact.construct_address();
+        let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());
 
-        let client1 = addr_fact.construct_address();
+        let client1 = Address::new_test_id(2);
         let client1_node = Client::new(server, Some(Command::Store(1, 1)));
 
         let mut start = State::new();
