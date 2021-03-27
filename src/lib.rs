@@ -12,16 +12,15 @@ use system::State;
 //                      User items
 // **********************************************************************
 
-mod user {
+pub mod user {
     use std::{fmt::Debug, hash::Hash, time::Duration};
 
     use ds_libs::{
         address::{Address, NodeType},
         amo_application::{AMOApplication, Request, Response},
-        Application, Context, HandleMessage, HandleTimer, InitializeNode,
+        Application, Context, HandleMessage, HandleTimer, InitializeNode, ManageMessageType,
+        ManageTimerType,
     };
-
-    use crate::system::InnerCtx;
 
     use derivative::Derivative;
 
@@ -95,10 +94,13 @@ mod user {
             }
         }
 
-        pub fn send_command(&self, ctx: &mut Context<Self, InnerCtx<App>>)
+        pub fn send_command<Ctx>(&self, ctx: &mut Context<Self, Ctx>)
         where
             App::Command: Ord + Clone,
             App::Res: Ord + Clone,
+            Ctx: ManageMessageType<Request<App::Command, Client<App>>>
+                + ManageMessageType<Response<App::Res>>
+                + ManageTimerType<ResendTimer>,
         {
             if let Some(ref command) = self.command {
                 let req = Request {
@@ -134,32 +136,36 @@ mod user {
         }
     }
 
-    impl<App> InitializeNode<InnerCtx<App>> for Server<App>
+    impl<App, Ctx> InitializeNode<Ctx> for Server<App>
     where
         App: Application,
     {
-        fn init(&mut self, _ctx: &mut Context<Self, InnerCtx<App>>) {}
+        fn init(&mut self, _ctx: &mut Context<Self, Ctx>) {}
     }
 
-    impl<App> InitializeNode<InnerCtx<App>> for Client<App>
+    impl<App, Ctx> InitializeNode<Ctx> for Client<App>
     where
         App: Application,
         App::Command: Ord + Clone,
         App::Res: Ord + Clone,
+        Ctx: ManageMessageType<Request<App::Command, Client<App>>>
+            + ManageMessageType<Response<App::Res>>
+            + ManageTimerType<ResendTimer>,
     {
-        fn init(&mut self, ctx: &mut Context<Self, InnerCtx<App>>) {
+        fn init(&mut self, ctx: &mut Context<Self, Ctx>) {
             self.send_command(ctx);
         }
     }
 
-    impl<App> HandleMessage<Request<App::Command, Client<App>>, InnerCtx<App>> for Server<App>
+    impl<App, Ctx> HandleMessage<Request<App::Command, Client<App>>, Ctx> for Server<App>
     where
         App: Application,
         App::Res: Clone + Ord,
+        Ctx: ManageMessageType<Response<App::Res>>,
     {
         fn handle_message(
             &mut self,
-            ctx: &mut Context<Self, InnerCtx<App>>,
+            ctx: &mut Context<Self, Ctx>,
             req: Request<App::Command, Client<App>>,
         ) {
             let sender = req.sender;
@@ -169,15 +175,11 @@ mod user {
         }
     }
 
-    impl<App> HandleMessage<Response<App::Res>, InnerCtx<App>> for Client<App>
+    impl<App, Ctx> HandleMessage<Response<App::Res>, Ctx> for Client<App>
     where
         App: Application,
     {
-        fn handle_message(
-            &mut self,
-            _ctx: &mut Context<Self, InnerCtx<App>>,
-            msg: Response<App::Res>,
-        ) {
+        fn handle_message(&mut self, _ctx: &mut Context<Self, Ctx>, msg: Response<App::Res>) {
             if msg.sequence_number == self.sequence_number {
                 self.command = None;
                 self.sequence_number += 1;
@@ -186,13 +188,16 @@ mod user {
         }
     }
 
-    impl<App> HandleTimer<ResendTimer, InnerCtx<App>> for Client<App>
+    impl<App, Ctx> HandleTimer<ResendTimer, Ctx> for Client<App>
     where
         App: Application,
         App::Command: Ord + Clone,
         App::Res: Ord + Clone,
+        Ctx: ManageMessageType<Request<App::Command, Client<App>>>
+            + ManageMessageType<Response<App::Res>>
+            + ManageTimerType<ResendTimer>,
     {
-        fn handle_timer(&mut self, ctx: &mut Context<Self, InnerCtx<App>>, timer: ResendTimer) {
+        fn handle_timer(&mut self, ctx: &mut Context<Self, Ctx>, timer: ResendTimer) {
             if self.sequence_number == timer.0 {
                 self.send_command(ctx);
             }
