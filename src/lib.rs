@@ -23,9 +23,10 @@ pub mod user {
     };
 
     use derivative::Derivative;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
-    pub struct ResendTimer(usize);
+    #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
+    pub struct ResendTimer(pub usize);
 
     #[derive(Derivative)]
     #[derivative(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
@@ -112,7 +113,7 @@ pub mod user {
                 ctx.send(self.server_address, req);
                 ctx.set(
                     ResendTimer(self.sequence_number),
-                    Duration::from_millis(100),
+                    Duration::from_millis(300),
                 );
             }
         }

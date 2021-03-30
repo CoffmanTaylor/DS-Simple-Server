@@ -14,3 +14,4 @@ derivative = {git = "https://github.com/CoffmanTaylor/rust-derivative.git", bran
 hi-set = {git = "ssh://git@github.com/CoffmanTaylor/HISet.git", branch = "main"}
 map-application = {git = "https://github.com/CoffmanTaylor/Map-Application.git", branch = "main"}
 model-checking = {git = "https://github.com/CoffmanTaylor/model-checking.git", branch = "main"}
+serde = {version = "1.0.125", features = ["derive"]}
