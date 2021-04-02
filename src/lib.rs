@@ -220,7 +220,7 @@ mod system {
         Application, Context, InitializeNode, ManageMessageType, ManageNodeType, ManageTimerType,
         NetworkItem,
     };
-    use hi_set::HISet;
+    use hi_set::set::HISet;
 
     use crate::user::{Client, ResendTimer, Server};
 

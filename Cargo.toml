@@ -4,14 +4,14 @@ version = "0.1.0"
 authors = ["Taylor Coffman <CoffmanTaylor96+git@gmail.com>"]
 edition = "2018"
 license = "GPL-3.0-or-later"
-repository = "ssh://git@github.com/CoffmanTaylor/DS-Simple-Server.git"
+repository = "https://github.com/CoffmanTaylor/DS-Simple-Server.git"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ds-libs = {git = "ssh://git@github.com/CoffmanTaylor/DS-libs.git", branch = "no-unifying-state"}
+ds-libs = {git = "https://github.com/CoffmanTaylor/DS-libs.git", tag = "v0.1.0"}
 derivative = {git = "https://github.com/CoffmanTaylor/rust-derivative.git", branch = "master"}
-hi-set = {git = "ssh://git@github.com/CoffmanTaylor/HISet.git", branch = "main"}
-map-application = {git = "https://github.com/CoffmanTaylor/Map-Application.git", branch = "main"}
-model-checking = {git = "https://github.com/CoffmanTaylor/model-checking.git", branch = "main"}
+hi-set = {git = "https://github.com/CoffmanTaylor/HISet.git", tag = "v0.2.0"}
+map-application = {git = "https://github.com/CoffmanTaylor/Map-Application.git", tag = "v0.1.0"}
+model-checking = {git = "https://github.com/CoffmanTaylor/model-checking.git", tag = "v0.2.0"}
 serde = {version = "1.0.125", features = ["derive"]}
