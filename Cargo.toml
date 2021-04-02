@@ -9,7 +9,7 @@ repository = "ssh://git@github.com/CoffmanTaylor/DS-Simple-Server.git"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ds-libs = {git = "ssh://git@github.com/CoffmanTaylor/DS-libs.git", branch = "main"}
+ds-libs = {git = "ssh://git@github.com/CoffmanTaylor/DS-libs.git", branch = "no-unifying-state"}
 derivative = {git = "https://github.com/CoffmanTaylor/rust-derivative.git", branch = "master"}
 hi-set = {git = "ssh://git@github.com/CoffmanTaylor/HISet.git", branch = "main"}
 map-application = {git = "https://github.com/CoffmanTaylor/Map-Application.git", branch = "main"}
