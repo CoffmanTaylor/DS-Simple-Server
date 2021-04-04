@@ -432,7 +432,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn two_servers_both_see_change() {
+    fn two_clients_both_see_change() {
         // setup
         let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());
@@ -480,7 +480,7 @@ mod tests {
     }
 
     #[test]
-    fn two_servers_change_different_values() {
+    fn two_clients_change_different_values() {
         // setup
         let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());
@@ -533,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    fn one_server_that_drops_both_messages() {
+    fn one_client_that_drops_both_messages() {
         // setup
         let server = Address::new_test_id(1);
         let server_node = Server::new(MapApplication::new());

@@ -1,0 +1,5 @@
+# DS Simple Server
+`Simple Server` is one of most basic distributed system possible. A single server that can service many clients. This library defines the protocol used to communicate between the server and clients. As well as the semantics of this paradigm of distributed system. It is built using the abstractions and types defined in [ds-libs](https://github.com/CoffmanTaylor/DS-libs). And tested using the model checking framework provided by [model-checking](https://github.com/CoffmanTaylor/model-checking).
+
+## Design
+The distributed system consists of a single infallible server and an arbitrary number of clients. The server contains a single instance of a AMO Application that the clients can send commands to query. There is no system for ordering the requests. The clients provide the driving force behind ALO semantics, ensuring that they get the result from their requests before they send another.
